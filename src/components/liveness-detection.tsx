@@ -6,17 +6,13 @@ import * as faceapi from 'face-api.js';
 export default function FaceLiveness() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [videoStarted, setVideoStarted] = useState(false);
   const [, setIsFaceDetected] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [movementProgress, setMovementProgress] = useState(0);
   const [, setIsMovementValidated] = useState(false);
   const [initialNosePosition, setInitialNosePosition] = useState<{ x: number; y: number } | null>(null);
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
-
-  useEffect(() => {
-    startVideo();
-    loadModels();
-  }, []);
 
   async function loadModels() {
     try {
@@ -29,7 +25,9 @@ export default function FaceLiveness() {
 
   async function startVideo() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 }
+      });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
@@ -43,6 +41,7 @@ export default function FaceLiveness() {
     try {
       const detections = await faceapi.detectAllFaces(videoRef.current, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks();
+      console.log('Detecção de rostos:', detections);
       setIsFaceDetected(detections.length > 0);
 
       if (detections.length > 0) {
@@ -72,10 +71,8 @@ export default function FaceLiveness() {
     }
   }
 
-
   async function captureImage() {
     console.log('aqui')
-    console.log(!videoRef.current)
     if (!videoRef.current || !canvasRef.current) return;
     const context = canvasRef.current.getContext('2d');
     if (!context) return;
@@ -94,52 +91,50 @@ export default function FaceLiveness() {
 
   useEffect(() => {
     if (movementProgress >= 100) {
-      captureImage()
-
+      captureImage();
     }
-  }, [movementProgress])
+  }, [movementProgress]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 relative">
       <h1 className="text-2xl font-bold mb-4 text-black">Face Liveness</h1>
-      {
-        !isCompleted && (
-          <div
-            className="relative overflow-hidden bg-black"
-            id="image"
-            style={{
-              width: "200px",
-              height: "300px",
-              borderRadius: "50% / 30%",
-              borderBottomLeftRadius: "50% 20%",
-              borderBottomRightRadius: "50% 20%",
-              position: "relative",
-              background: `conic-gradient(#4CAF50 ${movementProgress * 3.6}deg, transparent 0)`,
-              border: "8px solid transparent", // Espaço para a borda
-              transition: "background 0.5s ease", // Transição suave
-              transformOrigin: "center", // Faz o movimento começar de cima
-            }}
-          >
-            <video
-              ref={videoRef}
-              autoPlay muted
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-          </div>
-        )
-      }
+
+      {!videoStarted && <button className="mt-4 cursor-pointer px-4 py-2 bg-blue-500 text-white rounded-lg" onClick={() => {
+        setVideoStarted(true)
+        startVideo();
+        loadModels();
+      }}>Iniciar</button>}
+      {(!isCompleted || videoStarted) && (
+        <div
+          className="relative overflow-hidden bg-black"
+          id="image"
+          style={{
+            width: "200px",
+            height: "300px",
+            borderRadius: "50% / 30%",
+            borderBottomLeftRadius: "50% 20%",
+            borderBottomRightRadius: "50% 20%",
+            position: "relative",
+            background: `conic-gradient(#4CAF50 ${movementProgress * 3.6}deg, transparent 0)`,
+            border: "8px solid transparent", // Espaço para a borda
+            transition: "background 0.5s ease", // Transição suave
+            transformOrigin: "center", // Faz o movimento começar de cima
+          }}
+        >
+          <video
+            ref={videoRef}
+            autoPlay
+            muted
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={(e) => console.error("Erro no vídeo:", e)}
+            onPlay={() => console.log("Vídeo carregado e tocando")}
+            onLoadedData={() => console.log("Dados do vídeo carregados")}
+          />
+        </div>
+      )}
 
       <canvas ref={canvasRef} className="hidden" />
-      {/* {isFaceDetected && isMovementValidated ? (
-        <button
-          onClick={captureImage}
-          className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg"
-        >
-          Capturar Foto
-        </button>
-      ) : (
-        <p className="mt-4 text-red-500">{isFaceDetected ? 'Continue se movendo' : 'Nenhum rosto detectado'}</p>
-      )} */}
       {capturedImage && (
         <>
           <div className="mt-4">
@@ -151,9 +146,7 @@ export default function FaceLiveness() {
             />
           </div>
           <button
-            onClick={() => {
-              window.location.reload();
-            }}
+            onClick={() => window.location.reload()}
             className="mt-4 cursor-pointer px-4 py-2 bg-blue-500 text-white rounded-lg"
           >
             Não ficou boa
@@ -161,7 +154,5 @@ export default function FaceLiveness() {
         </>
       )}
     </div>
-
-
   );
 }
